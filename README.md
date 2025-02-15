@@ -1,0 +1,1 @@
+### The server code is inside the dictonary "assignment1" and the client code (two parts) is inside the "a1-clients"
