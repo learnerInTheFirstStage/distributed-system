@@ -5,6 +5,12 @@ import com.google.gson.JsonParser;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.ConnectionFactory;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeoutException;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -13,11 +19,35 @@ import javax.servlet.http.HttpServletResponse;
 
 @WebServlet(name = "SkiersServlet", urlPatterns = {"/skiers/*"})
 public class SkiersServlet extends HttpServlet {
+  private Connection rabbitMQConnection;
+  private BlockingQueue<Channel> channelPool;
+
+  @Override
+  public void init() throws ServletException {
+    try {
+      // Initialize RabbitMQ connection and channel pool
+      ConnectionFactory factory = new ConnectionFactory();
+      factory.setHost("54.245.163.144");
+      factory.setPort(5672);
+      rabbitMQConnection = factory.newConnection();
+      channelPool = new LinkedBlockingQueue<>();
+
+      // Create a pool of 32 channels
+      for (int i = 0; i < 32; i++) {
+        Channel channel = rabbitMQConnection.createChannel();
+        channel.queueDeclare("liftRides", false, false, false, null);
+        channelPool.offer(channel);
+      }
+    } catch (Exception e) {
+      throw new ServletException("Failed to initialize RabbitMQ connection", e);
+    }
+  }
   @Override
   protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
     response.setContentType("application/json");
     PrintWriter out = response.getWriter();
 
+    // validate path parameters
     String pathInfo = request.getPathInfo(); // eg: /7/seasons/2025/days/1/skiers/32373
     if (pathInfo == null || pathInfo.isEmpty()) {
       response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -67,16 +97,58 @@ public class SkiersServlet extends HttpServlet {
     int liftID = jsonBody.get("liftID").getAsInt();
     int time = jsonBody.get("time").getAsInt();
 
-    JsonObject jsonResponse = new JsonObject();
-    jsonResponse.addProperty("resortID", resortID);
-    jsonResponse.addProperty("seasonID", seasonID);
-    jsonResponse.addProperty("dayID", dayID);
-    jsonResponse.addProperty("skierID", skierID);
-    jsonResponse.addProperty("liftID", liftID);
-    jsonResponse.addProperty("time", time);
-    jsonResponse.addProperty("message", "Lift ride recorded");
+    // Format the message for RabbitMQ
+    JsonObject messageJson = new JsonObject();
+    messageJson.addProperty("resortID", resortID);
+    messageJson.addProperty("seasonID", seasonID);
+    messageJson.addProperty("dayID", dayID);
+    messageJson.addProperty("skierID", skierID);
+    messageJson.addProperty("liftID", liftID);
+    messageJson.addProperty("time", time);
 
+    // Send the message to RabbitMQ
+    Channel channel = null;
+    try {
+      channel = channelPool.poll();
+      if (channel != null) {
+        channel.basicPublish("", "liftRides", null, messageJson.toString().getBytes());
+      } else {
+        throw new IOException("No available RabbitMQ channels");
+      }
+    } catch (Exception e) {
+      response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      out.println("{\"error\": \"Failed to send message to RabbitMQ\"}");
+      return;
+    } finally {
+      if (channel != null) {
+        boolean isOffered = channelPool.offer(channel);
+        if (!isOffered) {
+          System.err.println("Failed to offer channel to the pool");
+          try {
+            channel.close();
+          } catch (TimeoutException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      }
+    }
+
+    // Add the success message to the existing JSON object
+    messageJson.addProperty("message", "Lift ride recorded and sent to queue");
+
+    // Return the response
     response.setStatus(HttpServletResponse.SC_CREATED);
-    out.println(jsonResponse.toString());
+    out.println(messageJson.toString());
+  }
+
+  @Override
+  public void destroy() {
+    try {
+      if (rabbitMQConnection != null) {
+        rabbitMQConnection.close();
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 }

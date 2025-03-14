@@ -107,7 +107,7 @@ public class MultithreadedClient {
   }
 
   public static void main(String[] args) {
-    String baseUrl = "http://34.213.174.53:8080/a1_server-1.0.0";
+    String baseUrl = "http://54.149.181.56:8080/a1_server-1.0.0";
     MultithreadedClient client = new MultithreadedClient(baseUrl);
     try {
       client.start();
