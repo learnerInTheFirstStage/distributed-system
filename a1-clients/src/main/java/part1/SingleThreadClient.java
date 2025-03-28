@@ -51,7 +51,7 @@ public class SingleThreadClient {
   }
 
   public static void main(String[] args) {
-    String baseUrl = "http://localhost:8080/a1_local";
+    String baseUrl = "http://34.222.142.136/a1_server-1.0.0";
     SingleThreadClient client = new SingleThreadClient(baseUrl);
     client.start();
   }

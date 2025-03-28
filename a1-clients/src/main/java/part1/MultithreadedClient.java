@@ -13,7 +13,6 @@ public class MultithreadedClient {
   private static final int TOTAL_REQUESTS = 200000;
   private static final int INITIAL_THREADS = 32;
   private static final int REQUESTS_PER_THREAD = 1000;
-  // private static final int MAX_THREADS = 200;
   private static final int QUEUE_CAPACITY = 10000;
   private static final int BATCH_SIZE = 50000;
 
@@ -107,7 +106,7 @@ public class MultithreadedClient {
   }
 
   public static void main(String[] args) {
-    String baseUrl = "http://54.149.181.56:8080/a1_server-1.0.0";
+    String baseUrl = "http://34.222.142.136/a1_server-1.0.0";
     MultithreadedClient client = new MultithreadedClient(baseUrl);
     try {
       client.start();

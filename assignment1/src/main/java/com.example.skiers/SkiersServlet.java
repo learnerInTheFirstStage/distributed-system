@@ -27,8 +27,9 @@ public class SkiersServlet extends HttpServlet {
     try {
       // Initialize RabbitMQ connection and channel pool
       ConnectionFactory factory = new ConnectionFactory();
-      factory.setHost("54.245.163.144");
+      factory.setHost("44.248.39.118");
       factory.setPort(5672);
+
       rabbitMQConnection = factory.newConnection();
       channelPool = new LinkedBlockingQueue<>();
 
